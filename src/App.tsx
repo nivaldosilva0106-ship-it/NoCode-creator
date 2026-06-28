@@ -61,6 +61,8 @@ import {
   Loader
 } from "lucide-react";
 
+import { supabase } from "./utils/supabase/client";
+
 // Types
 interface ChatMessage {
   id: string;
@@ -698,18 +700,23 @@ function SupabaseStatusCard() {
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
-    fetch("/api/supabase/status")
-      .then(r => r.json())
-      .then(data => {
-        if (data.connected) {
-          setStatus("connected");
-          setMsg(data.message || "Conectado ao banco de dados.");
-        } else {
+    supabase
+      .from("projects")
+      .select("*", { count: "exact", head: true })
+      .then(({ count, error }) => {
+        if (error && error.code === "42P01") {
           setStatus("error");
-          setMsg(data.error || "Erro de conexão.");
+          setMsg("Tabela 'projects' não encontrada. Execute o SQL do schema.");
+        } else if (error) {
+          setStatus("error");
+          setMsg(error.message || "Erro de conexão.");
+        } else {
+          setStatus("connected");
+          setMsg(`Conectado ao banco de dados. (${count ?? 0} registos)`);
         }
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("Supabase connection error:", err);
         setStatus("error");
         setMsg("Não foi possível contactar o servidor.");
       });
