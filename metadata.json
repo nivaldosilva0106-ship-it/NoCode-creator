@@ -1,0 +1,6 @@
+{
+  "name": "NoCode Creator",
+  "description": "Gerador de sites no-code elegante com visual inspirado no Lovable, geração de código com Gemini API, visualização interativa e painel de controle administrativo.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
