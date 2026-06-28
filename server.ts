@@ -4,7 +4,9 @@ import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import { createClient } from "@supabase/supabase-js";
 
+dotenv.config({ path: ".env.local" });
 dotenv.config();
 
 const app = express();
@@ -14,6 +16,11 @@ app.use(express.json());
 
 // Path to data config
 const CONFIG_PATH = path.join(process.cwd(), "src", "data", "config.json");
+
+// Supabase Server Client
+const supabaseUrl = process.env.VITE_SUPABASE_URL || "";
+const supabaseKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Helper to load configurations
 function loadConfig() {
@@ -237,6 +244,68 @@ app.post("/api/generate", async (req, res) => {
       error: "Falha na geração do site pelo Gemini.", 
       details: error.message || error 
     });
+  }
+});
+
+// ----------------------------------------------------
+// SUPABASE ENDPOINTS
+// ----------------------------------------------------
+
+// Check Supabase connection status
+app.get("/api/supabase/status", async (req, res) => {
+  try {
+    if (!supabaseUrl || !supabaseKey) {
+      return res.json({ connected: false, error: "Credenciais Supabase não configuradas." });
+    }
+    const { data, error } = await supabase.from("projects").select("count").limit(1);
+    if (error) {
+      return res.json({ connected: false, error: error.message });
+    }
+    res.json({ connected: true, message: "Supabase conectado com sucesso!" });
+  } catch (err: any) {
+    res.json({ connected: false, error: err.message });
+  }
+});
+
+// Save project to Supabase
+app.post("/api/supabase/projects/save", async (req, res) => {
+  try {
+    const { prompt, html, css, js, explanation } = req.body;
+    const { data, error } = await supabase
+      .from("projects")
+      .insert([{ prompt, html, css, js, explanation }])
+      .select();
+    if (error) throw error;
+    res.json({ status: "success", project: data?.[0] });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get projects from Supabase
+app.get("/api/supabase/projects", async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("projects")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (error) throw error;
+    res.json({ projects: data || [] });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete project from Supabase
+app.delete("/api/supabase/projects/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { error } = await supabase.from("projects").delete().eq("id", id);
+    if (error) throw error;
+    res.json({ status: "success" });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
