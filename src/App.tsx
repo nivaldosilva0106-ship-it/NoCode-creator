@@ -929,6 +929,19 @@ export default function App() {
     }, 100);
     return () => clearTimeout(timer);
   }, [chatMessages]);
+
+  // Close model selector on outside click
+  useEffect(() => {
+    if (!showModelSelector) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-model-selector]")) {
+        setShowModelSelector(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showModelSelector]);
   
   // refinement prompt
   const [refinePrompt, setRefinePrompt] = useState("");
@@ -938,6 +951,8 @@ export default function App() {
   
   // Server Config state
   const KEY_MASK = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
+  const [showModelSelector, setShowModelSelector] = useState(false);
+
   const [apiConfig, setApiConfig] = useState({
     model: "gemini-3.5-flash",
     systemInstruction: "",
@@ -1290,6 +1305,9 @@ export default function App() {
     setActiveTab("builder");
 
     // Interactive step simulations for user-friendly feel
+    const providerName = AI_PROVIDERS.find(p => p.id === activeProvider)?.name || activeProvider;
+    const modelName = AI_PROVIDERS.find(p => p.id === activeProvider)?.models.find(m => m.id === activeModel)?.name || activeModel;
+    
     const stepDuration = 900;
     
     setTimeout(() => {
@@ -1299,7 +1317,7 @@ export default function App() {
 
     setTimeout(() => {
       setGenerationStep(3);
-      setGenerationLogs(prev => [...prev, "✓ Design pattern estruturado.", "Iniciando comunicação segura com o modelo Gemini API...", "Instruindo o modelo a gerar HTML semântico, JavaScript nativo e CSS de animação..."]);
+      setGenerationLogs(prev => [...prev, "✓ Design pattern estruturado.", `Conectando ao modelo ${modelName} via ${providerName}...`, "Instruindo o modelo a gerar HTML semântico, JavaScript nativo e CSS de animação..."]);
     }, stepDuration * 2);
 
     setTimeout(() => {
@@ -1311,7 +1329,11 @@ export default function App() {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: promptText })
+        body: JSON.stringify({ 
+          prompt: promptText,
+          provider: activeProvider,
+          model: activeModel
+        })
       });
 
       if (!res.ok) {
@@ -1415,10 +1437,11 @@ export default function App() {
     setRefinePrompt("");
     setIsGenerating(true);
     setGenerationStep(1);
+    const refineProviderName = AI_PROVIDERS.find(p => p.id === activeProvider)?.name || activeProvider;
     setGenerationLogs([
       "Modificando projeto existente...",
       `Nova alteração solicitada: "${instruction}"`,
-      "Enviando projeto anterior e novos requisitos para o Gemini..."
+      `Enviando projeto anterior e novos requisitos para ${refineProviderName}...`
     ]);
 
     try {
@@ -1432,7 +1455,11 @@ export default function App() {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: combinedPrompt })
+        body: JSON.stringify({ 
+          prompt: combinedPrompt,
+          provider: activeProvider,
+          model: activeModel
+        })
       });
 
       if (!res.ok) {
@@ -2096,14 +2123,69 @@ Seu Prompt Criador:
                   </button>
 
                   {/* Right side buttons */}
-                  <div className="flex items-center gap-2">
-                    {/* Selectable / Dropdown style trigger "Construir" */}
-                    <div 
-                      onClick={() => handleGenerate(promptInput)}
-                      className="flex items-center bg-transparent hover:bg-white/5 px-3 py-1.5 rounded-lg border border-white/5 cursor-pointer text-zinc-300 hover:text-white transition-all text-xs font-semibold gap-1"
-                    >
-                      <span>Construir</span>
-                      <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
+                  <div className="flex items-center gap-2 relative">
+                    {/* Model Selector */}
+                    <div className="relative" data-model-selector>
+                      <button
+                        type="button"
+                        onClick={() => setShowModelSelector(!showModelSelector)}
+                        className="flex items-center bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg border border-white/10 cursor-pointer text-zinc-300 hover:text-white transition-all text-xs font-semibold gap-1.5"
+                      >
+                        <Cpu className="w-3.5 h-3.5 text-indigo-400" />
+                        <span className="max-w-[120px] truncate">
+                          {AI_PROVIDERS.find(p => p.id === activeProvider)?.models.find(m => m.id === activeModel)?.name?.split("(")[0]?.trim() || activeModel}
+                        </span>
+                        <ChevronDown className={`w-3 h-3 text-zinc-400 transition-transform ${showModelSelector ? "rotate-180" : ""}`} />
+                      </button>
+                      
+                      {showModelSelector && (
+                        <div className="absolute bottom-full right-0 mb-2 w-72 bg-[#141418] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden animate-fadeIn">
+                          <div className="p-2 border-b border-white/5">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 px-2">Modelo ativo: {AI_PROVIDERS.find(p => p.id === activeProvider)?.name}</span>
+                          </div>
+                          <div className="max-h-60 overflow-y-auto p-1.5">
+                            {AI_PROVIDERS.filter(p => savedProviders.includes(p.id) || p.id === activeProvider).map(prov => (
+                              <div key={prov.id}>
+                                <div className="px-2 py-1.5 text-[9px] font-bold uppercase tracking-wider text-zinc-500">{prov.name}</div>
+                                {prov.models.map(m => (
+                                  <button
+                                    key={m.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveProvider(prov.id);
+                                      setActiveModel(m.id);
+                                      setModelSelect(m.id);
+                                      setShowModelSelector(false);
+                                    }}
+                                    className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all flex items-center justify-between ${
+                                      activeProvider === prov.id && activeModel === m.id
+                                        ? "bg-indigo-600/20 text-indigo-300 border border-indigo-500/30"
+                                        : "text-zinc-300 hover:bg-white/5 border border-transparent"
+                                    }`}
+                                  >
+                                    <span className="truncate">{m.name}</span>
+                                    {activeProvider === prov.id && activeModel === m.id && <Check className="w-3.5 h-3.5 text-indigo-400 shrink-0" />}
+                                  </button>
+                                ))}
+                              </div>
+                            ))}
+                            {AI_PROVIDERS.filter(p => savedProviders.includes(p.id) || p.id === activeProvider).length === 0 && (
+                              <div className="px-3 py-4 text-xs text-zinc-500 text-center">
+                                Nenhum provedor configurado. Vá ao Painel Admin para adicionar chaves de API.
+                              </div>
+                            )}
+                          </div>
+                          <div className="p-2 border-t border-white/5">
+                            <button
+                              type="button"
+                              onClick={() => { setShowModelSelector(false); setActiveTab("admin"); setAdminSubTab("ia"); }}
+                              className="w-full text-center text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold py-1.5 rounded-lg hover:bg-indigo-500/10 transition-all"
+                            >
+                              Gerenciar provedores →
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Microphone icon */}

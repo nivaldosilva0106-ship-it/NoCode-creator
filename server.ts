@@ -152,114 +152,228 @@ app.post("/api/reset-config", (req, res) => {
 
 // Generate website based on prompt
 app.post("/api/generate", async (req, res) => {
-  const { prompt } = req.body;
+  const { prompt, provider, model: requestedModel } = req.body;
   if (!prompt || typeof prompt !== "string" || prompt.trim() === "") {
     return res.status(400).json({ error: "Prompt é obrigatório." });
   }
 
-  const config = loadConfig();
-  
-  // Retrieve Google AI key from new map or fallback key
-  let apiKeyToUse = (config.apiKeys && config.apiKeys["google-ai"]) || config.customApiKey || process.env.GEMINI_API_KEY;
-  
-  if (!apiKeyToUse) {
-    try {
-      console.log("Nenhuma chave de API configurada. Utilizando o Gerador de Alta Fidelidade Local.");
-      const { generateFallbackSite } = await import("./src/data/fallbackGenerator");
-      const fallbackResult = generateFallbackSite(prompt);
-      return res.json(fallbackResult);
-    } catch (fallbackError) {
-      console.error("Erro ao rodar gerador local:", fallbackError);
-      return res.status(500).json({ 
-        error: "Nenhuma chave de API do Gemini configurada. Forneça uma chave de API no Painel Administrativo ou configure a variável de ambiente GEMINI_API_KEY." 
-      });
+  // Read config from Supabase (primary) or local file (fallback)
+  let config: any = {};
+  try {
+    const { data } = await supabase
+      .from("user_configs")
+      .select("*")
+      .eq("user_id", "default")
+      .maybeSingle();
+    if (data) {
+      config = {
+        activeProvider: data.active_provider,
+        activeModel: data.active_model,
+        apiKeys: data.api_keys || {},
+        systemInstruction: data.system_instruction || "",
+        model: data.active_model
+      };
+    } else {
+      config = loadConfig();
     }
+  } catch {
+    config = loadConfig();
   }
 
+  const activeProvider = provider || config.activeProvider || "google-ai";
+  const activeModel = requestedModel || config.activeModel || config.model || "gemini-3.5-flash";
+  const apiKeys = config.apiKeys || {};
+  const systemInstruction = config.systemInstruction || "";
+
+  const userMessage = `Crie um site de página única (SPA) completo, bonito e interativo baseado neste prompt de usuário: "${prompt}".\n\nRetorne as respostas no formato JSON com os campos exatamente definidos.`;
+
+  const jsonSchema = `\n\nRetorne APENAS um JSON válido com estes campos (sem markdown, sem \`\`\`):
+{
+  "html": "O código HTML completo...",
+  "css": "Código CSS customizado...",
+  "js": "Código JavaScript para interatividade...",
+  "explanation": "Explicação curta do que foi criado..."
+}`;
+
   try {
-    const ai = new GoogleGenAI({
-      apiKey: apiKeyToUse,
-      httpOptions: {
+    let responseData: any;
+
+    // 1. Google AI (Gemini) - uses SDK
+    if (activeProvider === "google-ai") {
+      const apiKey = apiKeys["google-ai"] || process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        const { generateFallbackSite } = await import("./src/data/fallbackGenerator");
+        return res.json(generateFallbackSite(prompt));
+      }
+      const ai = new GoogleGenAI({ apiKey });
+      console.log(`[Gemini] Model: ${activeModel}`);
+      const response = await ai.models.generateContent({
+        model: activeModel,
+        contents: [{ role: "user", parts: [{ text: userMessage + jsonSchema }] }],
+        config: {
+          systemInstruction,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              html: { type: Type.STRING },
+              css: { type: Type.STRING },
+              js: { type: Type.STRING },
+              explanation: { type: Type.STRING }
+            },
+            required: ["html", "css", "js", "explanation"]
+          }
+        }
+      });
+      const text = response.text;
+      if (!text) throw new Error("Gemini não retornou conteúdo.");
+      responseData = JSON.parse(text.trim());
+
+    // 2. Anthropic (Claude) - different API format
+    } else if (activeProvider === "anthropic") {
+      const apiKey = apiKeys["anthropic"];
+      if (!apiKey) throw new Error("Chave de API da Anthropic não configurada.");
+      console.log(`[Anthropic] Model: ${activeModel}`);
+      const apiRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
         headers: {
-          "User-Agent": "aistudio-build",
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01"
+        },
+        body: JSON.stringify({
+          model: activeModel,
+          max_tokens: 16384,
+          system: systemInstruction,
+          messages: [{ role: "user", content: userMessage + jsonSchema }]
+        })
+      });
+      if (!apiRes.ok) {
+        const err = await apiRes.json();
+        throw new Error(err.error?.message || `Anthropic API error ${apiRes.status}`);
+      }
+      const result = await apiRes.json();
+      const content = result.content?.[0]?.text || "";
+      // Strip markdown code fences if present
+      const cleaned = content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+      responseData = JSON.parse(cleaned);
+
+    // 3. OpenAI-compatible providers (OpenAI, OpenRouter, Together, Groq, DeepSeek, Mistral, xAI, SambaNova, NVIDIA, Fireworks)
+    } else {
+      const providerApiUrls: Record<string, string> = {
+        "openai": "https://api.openai.com/v1/chat/completions",
+        "openrouter": "https://openrouter.ai/api/v1/chat/completions",
+        "deepseek": "https://api.deepseek.com/v1/chat/completions",
+        "mistral": "https://api.mistral.ai/v1/chat/completions",
+        "groq": "https://api.groq.com/openai/v1/chat/completions",
+        "xai": "https://api.x.ai/v1/chat/completions",
+        "together": "https://api.together.xyz/v1/chat/completions",
+        "cohere": "https://api.cohere.com/v2/chat",
+        "sambanova": "https://api.sambanova.ai/v1/chat/completions",
+        "nvidia-nim": "https://integrate.api.nvidia.com/v1/chat/completions",
+        "fireworks": "https://api.fireworks.ai/inference/v1/chat/completions",
+        "huggingface": "https://api-inference.huggingface.co/models/",
+      };
+
+      const apiUrl = providerApiUrls[activeProvider];
+      if (!apiUrl) {
+        throw new Error(`Provedor "${activeProvider}" não suportado ainda. Use Gemini, Anthropic ou um provedor OpenAI-compatível.`);
+      }
+
+      const apiKey = apiKeys[activeProvider];
+      if (!apiKey) throw new Error(`Chave de API para ${activeProvider} não configurada.`);
+
+      console.log(`[${activeProvider}] Model: ${activeModel}`);
+
+      let body: any;
+      let headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      };
+
+      if (activeProvider === "openrouter") {
+        headers["HTTP-Referer"] = "https://nocode-creator.app";
+        headers["X-Title"] = "NoCode Creator";
+      }
+
+      if (activeProvider === "cohere") {
+        // Cohere v2 chat format
+        body = {
+          model: activeModel,
+          messages: [{ role: "user", content: userMessage + jsonSchema }],
+          stream: false,
+          response_format: { type: "json_object" }
+        };
+      } else {
+        body = {
+          model: activeModel,
+          messages: [
+            { role: "system", content: systemInstruction },
+            { role: "user", content: userMessage + jsonSchema }
+          ],
+          temperature: 0.7,
+          max_tokens: 16384
+        };
+        // Some providers support response_format
+        if (["openai", "openrouter", "deepseek", "groq", "together", "xai", "fireworks"].includes(activeProvider)) {
+          body.response_format = { type: "json_object" };
         }
       }
-    });
 
-    const targetModel = config.model || "gemini-3.5-flash";
+      const apiRes = await fetch(apiUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body)
+      });
 
-    console.log(`Chamando Gemini com o modelo ${targetModel} para o prompt: "${prompt}"`);
-
-    const response = await ai.models.generateContent({
-      model: targetModel,
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              text: `Crie um site de página única (SPA) completo, bonito e interativo baseado neste prompt de usuário: "${prompt}".\n\nRetorne as respostas no formato JSON com os campos exatamente definidos.`
-            }
-          ]
-        }
-      ],
-      config: {
-        systemInstruction: config.systemInstruction,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            html: {
-              type: Type.STRING,
-              description: "O código HTML completo do index.html. Deve conter Tailwind CSS via CDN (<script src='https://cdn.tailwindcss.com'></script>), Lucide Icons via CDN (<script src='https://unpkg.com/lucide@latest'></script> ou outra biblioteca de ícones) e todas as seções necessárias (ex: Hero, Recursos, Sobre, Contato)."
-            },
-            css: {
-              type: Type.STRING,
-              description: "Código CSS customizado de suporte para animações, degradês avançados ou correções de visual."
-            },
-            js: {
-              type: Type.STRING,
-              description: "Código JavaScript para adicionar interatividade real como toggles de abas, exibição de modais, feedback em formulários ou sliders."
-            },
-            explanation: {
-              type: Type.STRING,
-              description: "Uma explicação curta das principais seções e recursos criados neste projeto, escrita em português."
-            }
-          },
-          required: ["html", "css", "js", "explanation"]
-        }
+      if (!apiRes.ok) {
+        const err = await apiRes.json().catch(() => ({}));
+        throw new Error(err.error?.message || err.message || `API error ${apiRes.status}`);
       }
-    });
 
-    const responseText = response.text;
-    if (!responseText) {
-      throw new Error("O modelo não retornou conteúdo textual válido.");
+      const result = await apiRes.json();
+
+      // Extract content - different providers have different response shapes
+      let content = "";
+      if (result.choices?.[0]?.message?.content) {
+        content = result.choices[0].message.content;
+      } else if (result.message?.content) {
+        content = result.message.content;
+      } else if (result.content?.[0]?.text) {
+        content = result.content[0].text;
+      } else if (typeof result.text === "string") {
+        content = result.text;
+      } else {
+        throw new Error("Formato de resposta não reconhecido do provedor.");
+      }
+
+      // Strip markdown code fences if present
+      const cleaned = content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+      responseData = JSON.parse(cleaned);
     }
 
-    const data = JSON.parse(responseText.trim());
-
-    // Auto-save to Supabase if connected
+    // Auto-save to Supabase
     try {
       if (supabaseUrl && supabaseKey) {
         await supabase.from("projects").insert([{
           prompt,
-          html: data.html || "",
-          css: data.css || "",
-          js: data.js || "",
-          explanation: data.explanation || ""
+          html: responseData.html || "",
+          css: responseData.css || "",
+          js: responseData.js || "",
+          explanation: responseData.explanation || ""
         }]);
-        console.log("[Supabase] Projeto salvo automaticamente após geração.");
       }
     } catch (saveErr) {
       console.error("[Supabase] Erro ao salvar projeto:", saveErr);
     }
 
-    res.json(data);
+    res.json(responseData);
 
   } catch (error: any) {
-    console.error("Erro na chamada da API do Gemini:", error);
-    res.status(500).json({ 
-      error: "Falha na geração do site pelo Gemini.", 
-      details: error.message || error 
+    console.error(`Erro na chamada da API (${activeProvider}):`, error);
+    res.status(500).json({
+      error: `Falha na geração pelo provedor ${activeProvider}.`,
+      details: error.message || String(error)
     });
   }
 });
