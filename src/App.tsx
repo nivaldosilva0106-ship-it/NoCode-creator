@@ -931,6 +931,7 @@ export default function App() {
   }, [chatMessages]);
 
   // Close model selector on outside click
+  const [showModelSelector, setShowModelSelector] = useState(false);
   useEffect(() => {
     if (!showModelSelector) return;
     const handler = (e: MouseEvent) => {
@@ -945,7 +946,6 @@ export default function App() {
   
   // refinement prompt
   const [refinePrompt, setRefinePrompt] = useState("");
-  const [showModelSelector, setShowModelSelector] = useState(false);
   
   // Saved Projects history (local persistence)
   const [history, setHistory] = useState<WebProject[]>([]);
