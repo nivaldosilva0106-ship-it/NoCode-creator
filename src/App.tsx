@@ -945,13 +945,13 @@ export default function App() {
   
   // refinement prompt
   const [refinePrompt, setRefinePrompt] = useState("");
+  const [showModelSelector, setShowModelSelector] = useState(false);
   
   // Saved Projects history (local persistence)
   const [history, setHistory] = useState<WebProject[]>([]);
   
   // Server Config state
   const KEY_MASK = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
-  const [showModelSelector, setShowModelSelector] = useState(false);
 
   const [apiConfig, setApiConfig] = useState({
     model: "gemini-3.5-flash",
