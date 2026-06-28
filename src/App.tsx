@@ -1878,7 +1878,7 @@ Seu Prompt Criador:
     : (customKeyInput !== "" && customKeyInput !== "••••••••••••••••" && customKeyInput.trim().length < 8);
 
   return (
-    <div id="nocode-app-container" className="min-h-screen bg-[#0a0a0a] text-zinc-300 flex flex-col font-sans selection:bg-purple-500/30 selection:text-white relative overflow-x-hidden">
+    <div id="nocode-app-container" className="h-screen bg-[#0a0a0a] text-zinc-300 flex flex-col font-sans selection:bg-purple-500/30 selection:text-white relative overflow-x-hidden">
       
       {/* Top Header Navigation */}
       {activeTab !== "builder" && (
@@ -2831,7 +2831,7 @@ Seu Prompt Criador:
 
         {/* TAB 3: ADMIN PANEL (CONFIGURATION & AI MODELS) */}
         {activeTab === "admin" && (
-          <div id="admin-view" className="flex-1 flex flex-col md:flex-row overflow-hidden">
+          <div id="admin-view" className="flex-1 flex flex-col md:flex-row h-[calc(100dvh-6rem)]">
             
             {/* Lateral Header (Sidebar Navigation only on Admin tab) */}
             <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-white/5 bg-[#08080a]/95 flex flex-col shrink-0 h-full">
@@ -2878,7 +2878,7 @@ Seu Prompt Criador:
             </aside>
 
             {/* Main Section Content */}
-            <main className="flex-grow p-6 md:p-8 space-y-6 overflow-y-auto max-w-5xl h-full">
+            <main className="flex-grow p-6 md:p-8 space-y-6 overflow-y-auto max-w-5xl h-full min-h-0">
               
               {adminSubTab === "dashboard" && (
                 <div className="space-y-6">
@@ -3503,6 +3503,11 @@ Seu Prompt Criador:
                   )}
                 </div>
               )}
+
+              {/* Admin Footer */}
+              <div className="border-t border-white/5 pt-4 pb-2 text-[10px] text-zinc-600 text-center select-none">
+                NoCode Creator — Dados armazenados no Supabase
+              </div>
 
             </main>
           </div>

@@ -17,9 +17,9 @@ app.use(express.json());
 // Path to data config
 const CONFIG_PATH = path.join(process.cwd(), "src", "data", "config.json");
 
-// Supabase Server Client
-const supabaseUrl = process.env.VITE_SUPABASE_URL || "";
-const supabaseKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
+// Supabase Server Client (uses service role key for server-side operations)
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
+const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Helper to load configurations
