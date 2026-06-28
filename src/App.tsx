@@ -937,6 +937,7 @@ export default function App() {
   const [history, setHistory] = useState<WebProject[]>([]);
   
   // Server Config state
+  const KEY_MASK = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
   const [apiConfig, setApiConfig] = useState({
     model: "gemini-3.5-flash",
     systemInstruction: "",
@@ -962,7 +963,7 @@ export default function App() {
     setEditingProvider(provId);
     
     const hasKey = apiKeys[provId] || (provId === "google-ai" && apiConfig.hasCustomApiKey);
-    setCustomKeyInput(hasKey ? "••••••••••••••••" : "");
+    setCustomKeyInput(hasKey ? KEY_MASK : "");
     
     const provData = AI_PROVIDERS.find(p => p.id === provId);
     if (provData) {
@@ -1097,9 +1098,9 @@ export default function App() {
         // Sync visual mask
         const providerKey = savedKeys[provider];
         if (providerKey) {
-          setCustomKeyInput("••••••••••••••••");
+          setCustomKeyInput(KEY_MASK);
         } else if (provider === "google-ai" && data.hasCustomApiKey) {
-          setCustomKeyInput("••••••••••••••••");
+          setCustomKeyInput(KEY_MASK);
         } else {
           setCustomKeyInput("");
         }
@@ -1125,7 +1126,7 @@ export default function App() {
 
     // Validar formato da chave se for o google-ai
     if (editingProvider === "google-ai") {
-      const isApiKeyInvalid = customKeyInput !== "" && customKeyInput !== "••••••••••••••••" && !/^AIzaSy[A-Za-z0-9_-]{33}$/.test(customKeyInput.trim());
+      const isApiKeyInvalid = customKeyInput !== "" && customKeyInput !== KEY_MASK && !/^AIzaSy[A-Za-z0-9_-]{33}$/.test(customKeyInput.trim());
       if (isApiKeyInvalid) {
         setAdminStatusMsg("Erro: A chave de API do Gemini informada é inválida. Deve começar com 'AIzaSy'.");
         setTimeout(() => setAdminStatusMsg(""), 4000);
@@ -1139,13 +1140,13 @@ export default function App() {
       const finalModel = showCustomModelField ? customModelInput.trim() : activeModel;
       
       const updatedKeys = { ...apiKeys };
-      if (customKeyInput !== "" && customKeyInput !== "••••••••••••••••") {
+      if (customKeyInput !== "" && customKeyInput !== KEY_MASK) {
         updatedKeys[editingProvider] = customKeyInput;
       }
 
       // Add to saved providers list if a key exists or is being saved
       let updatedSavedProviders = [...savedProviders];
-      const hasKey = (customKeyInput !== "" && customKeyInput !== "••••••••••••••••") || apiKeys[editingProvider];
+      const hasKey = (customKeyInput !== "" && customKeyInput !== KEY_MASK) || apiKeys[editingProvider];
       if (hasKey && !updatedSavedProviders.includes(editingProvider)) {
         updatedSavedProviders.push(editingProvider);
       }
@@ -1880,9 +1881,12 @@ Seu Prompt Criador:
     });
   };
 
-  const isInputKeyInvalid = activeProvider === "google-ai"
-    ? (customKeyInput !== "" && customKeyInput !== "••••••••••••••••" && !/^AIzaSy[A-Za-z0-9_-]{33}$/.test(customKeyInput.trim()))
-    : (customKeyInput !== "" && customKeyInput !== "••••••••••••••••" && customKeyInput.trim().length < 8);
+  const isKeyMasked = customKeyInput === KEY_MASK;
+  const isInputKeyInvalid = !isKeyMasked && customKeyInput.trim() !== "" && (
+    editingProvider === "google-ai"
+      ? !/^AIzaSy[A-Za-z0-9_-]{33}$/.test(customKeyInput.trim())
+      : customKeyInput.trim().length < 8
+  );
 
   return (
     <div id="nocode-app-container" className="h-screen bg-[#0a0a0a] text-zinc-300 flex flex-col font-sans selection:bg-purple-500/30 selection:text-white relative overflow-x-hidden">
@@ -3117,6 +3121,8 @@ Seu Prompt Criador:
                               placeholder={currentEditingProvider.placeholderKey}
                               value={customKeyInput}
                               onChange={(e) => setCustomKeyInput(e.target.value)}
+                              onFocus={() => { if (isKeyMasked) setCustomKeyInput(""); }}
+                              onBlur={() => { if (customKeyInput === "" && apiKeys[editingProvider]) setCustomKeyInput(KEY_MASK); }}
                               className={`w-full bg-[#141418] border rounded-xl px-4 py-3 text-sm focus:outline-none placeholder:text-zinc-600 transition-all ${
                                 isInputKeyInvalid
                                   ? "border-red-500 text-red-200 focus:border-red-500 focus:ring-1 focus:ring-red-500/20 bg-red-500/5"
@@ -3159,11 +3165,14 @@ Seu Prompt Criador:
                             >
                               {currentEditingProvider.models
                                 .filter(m => !filterFreeOnly || m.isFree)
-                                .map(m => (
-                                  <option key={m.id} value={m.id}>
-                                    {m.name} {m.isFree ? " (Gratuito)" : ""}
-                                  </option>
-                                ))
+                                .map(m => {
+                                  const alreadyHasFree = m.name.includes("Gratuito") || m.name.includes("Free");
+                                  return (
+                                    <option key={m.id} value={m.id}>
+                                      {m.name}{!alreadyHasFree && m.isFree ? " (Gratuito)" : ""}
+                                    </option>
+                                  );
+                                })
                               }
                               {currentEditingProvider.models.filter(m => !filterFreeOnly || m.isFree).length === 0 && (
                                 <option value="">Nenhum modelo nesta filtragem</option>
