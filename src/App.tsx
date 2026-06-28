@@ -1298,6 +1298,13 @@ export default function App() {
       return;
     }
 
+    const currentApiKey = apiKeys[activeProvider];
+    if (!currentApiKey || currentApiKey === KEY_MASK || currentApiKey.trim() === "") {
+      const provName = AI_PROVIDERS.find(p => p.id === activeProvider)?.name || activeProvider;
+      alert(`Chave de API não configurada para ${provName}. Vá ao Painel Admin → Ajustes de IA para adicionar a chave.`);
+      return;
+    }
+
     setPromptInput(promptText);
     setIsGenerating(true);
     setGenerationStep(1);
@@ -1326,22 +1333,50 @@ export default function App() {
 
     try {
       const startTime = Date.now();
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          prompt: promptText,
-          provider: activeProvider,
-          model: activeModel
-        })
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Falha na chamada da API.");
+      
+      // Try client-side AI generation first
+      let responseData: any;
+      const providerApiKey = apiKeys[activeProvider];
+      
+      if (providerApiKey && providerApiKey !== KEY_MASK) {
+        try {
+          const { generateSite } = await import("./utils/aiGenerate");
+          responseData = await generateSite(activeProvider, activeModel, providerApiKey, promptText);
+        } catch (clientError: any) {
+          console.warn("Client-side generation failed, trying server:", clientError.message);
+          // Fallback to server
+          const res = await fetch("/api/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              prompt: promptText,
+              provider: activeProvider,
+              model: activeModel
+            })
+          });
+          if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.error || "Falha na chamada da API.");
+          }
+          responseData = await res.json();
+        }
+      } else {
+        // No client key, try server
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            prompt: promptText,
+            provider: activeProvider,
+            model: activeModel
+          })
+        });
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.error || "Falha na chamada da API.");
+        }
+        responseData = await res.json();
       }
-
-      const responseData = await res.json();
       
       const elapsed = Math.max(0, 4500 - (Date.now() - startTime));
       // wait a bit so user can feel the creation steps if the request returned ultra fast
@@ -1452,22 +1487,46 @@ export default function App() {
         `--- JS Atual ---\n${originalProject.js}\n\n` +
         `Retorne o código completo atualizado e modificado mantendo toda a estrutura que já funcionava e aplicando a nova alteração pedida.`;
 
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          prompt: combinedPrompt,
-          provider: activeProvider,
-          model: activeModel
-        })
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Falha ao refinar o site.");
+      let responseData: any;
+      const providerApiKey = apiKeys[activeProvider];
+      
+      if (providerApiKey && providerApiKey !== KEY_MASK) {
+        try {
+          const { refineSite } = await import("./utils/aiGenerate");
+          responseData = await refineSite(activeProvider, activeModel, providerApiKey, instruction, originalProject.html, originalProject.css, originalProject.js);
+        } catch (clientError: any) {
+          console.warn("Client-side refine failed, trying server:", clientError.message);
+          const res = await fetch("/api/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              prompt: combinedPrompt,
+              provider: activeProvider,
+              model: activeModel
+            })
+          });
+          if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.error || "Falha ao refinar o site.");
+          }
+          responseData = await res.json();
+        }
+      } else {
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            prompt: combinedPrompt,
+            provider: activeProvider,
+            model: activeModel
+          })
+        });
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.error || "Falha ao refinar o site.");
+        }
+        responseData = await res.json();
       }
-
-      const responseData = await res.json();
 
       setGenerationStep(4);
       setGenerationLogs(prev => [
