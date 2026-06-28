@@ -959,14 +959,14 @@ export default function App() {
     
     const provData = AI_PROVIDERS.find(p => p.id === provId);
     if (provData) {
-      let currentModel = provId === activeProvider ? activeModel : (provData.models[0]?.id || "");
-      const modelInList = provData.models.some(m => m.id === currentModel);
-      if (currentModel && !modelInList) {
-        setShowCustomModelField(true);
-        setCustomModelInput(currentModel);
-      } else {
+      const modelInList = provData.models.some(m => m.id === activeModel);
+      if (modelInList) {
         setShowCustomModelField(false);
-        setActiveModel(currentModel || provData.models[0]?.id || "");
+      } else {
+        const firstModel = provData.models[0]?.id || "";
+        setActiveModel(firstModel);
+        setModelSelect(firstModel);
+        setShowCustomModelField(false);
       }
     }
   };

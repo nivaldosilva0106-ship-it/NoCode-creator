@@ -274,7 +274,7 @@ app.get("/api/supabase/status", async (req, res) => {
     if (!supabaseUrl || !supabaseKey) {
       return res.json({ connected: false, error: "Credenciais Supabase não configuradas." });
     }
-    const { data, error } = await supabase.from("projects").select("count").limit(1);
+    const { data, error } = await supabase.from("projects").select("*", { count: "exact", head: true }).limit(1);
     if (error) {
       return res.json({ connected: false, error: error.message });
     }
