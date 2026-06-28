@@ -1769,20 +1769,8 @@ Seu Prompt Criador:
     : (customKeyInput !== "" && customKeyInput !== "••••••••••••••••" && customKeyInput.trim().length < 8);
 
   return (
-    <div id="nocode-app-container" className="min-h-screen bg-[#050505] text-zinc-300 flex flex-col font-sans selection:bg-purple-500/30 selection:text-white relative overflow-x-hidden">
+    <div id="nocode-app-container" className="min-h-screen bg-[#0a0a0a] text-zinc-300 flex flex-col font-sans selection:bg-purple-500/30 selection:text-white relative overflow-x-hidden">
       
-      {/* Global Ambient Mesh Background */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none select-none z-0">
-        {/* Left Blue Glow */}
-        <div className="absolute top-[10%] left-[-25%] w-[1000px] h-[900px] bg-blue-600/35 rounded-full blur-[140px] opacity-90 mix-blend-screen"></div>
-        {/* Right Blue Glow */}
-        <div className="absolute top-[15%] right-[-25%] w-[1000px] h-[900px] bg-indigo-600/35 rounded-full blur-[140px] opacity-90 mix-blend-screen"></div>
-        {/* Bottom Pink/Magenta Glow */}
-        <div className="absolute bottom-[-15%] left-[5%] right-[5%] h-[600px] bg-pink-500/25 rounded-full blur-[150px] opacity-80 mix-blend-screen animate-pulse" style={{ animationDuration: '12s' }}></div>
-        {/* Subtle top dark overlay */}
-        <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-[#050505] to-transparent opacity-85"></div>
-      </div>
-
       {/* Top Header Navigation */}
       {activeTab !== "builder" && (
         <nav id="navbar-top" className={`sticky top-0 z-40 h-16 border-b border-white/5 px-4 md:px-8 flex items-center justify-between backdrop-blur-md transition-all duration-300 ${activeTab === 'home' ? 'bg-transparent border-b-transparent' : 'bg-[#09090b]/40 border-b border-white/5'}`}>
@@ -1986,7 +1974,7 @@ Seu Prompt Criador:
             
             {/* Generating Loader Screen (Simple loading icon as requested in Image 4) */}
             {isGenerating && (
-              <div className="absolute inset-0 z-50 bg-[#050505]/65 backdrop-blur-md flex flex-col items-center justify-center p-6 select-none animate-fade-in">
+              <div className="absolute inset-0 z-50 bg-[#0a0a0a]/65 backdrop-blur-md flex flex-col items-center justify-center p-6 select-none animate-fade-in">
                 <div className="flex flex-col items-center space-y-4 text-center">
                   {generationStep === -1 ? (
                     <div className="space-y-4">
@@ -2021,9 +2009,9 @@ Seu Prompt Criador:
             )}
 
             {/* Sidebar: Lovable-inspired Sidebar */}
-            <aside ref={chatContainerRef} id="builder-sidebar-files" className="h-full border-b md:border-b-0 md:border-r border-white/5 bg-[#09090b]/90 backdrop-blur-md flex flex-col shrink-0 overflow-hidden relative" style={{ width: `${chatWidth}%`, minWidth: '280px', maxWidth: '500px' }}>
+            <aside ref={chatContainerRef} id="builder-sidebar-files" className="h-full border-b md:border-b-0 md:border-r border-white/5 bg-[#09090b] flex flex-col shrink-0 overflow-hidden relative" style={{ width: `${chatWidth}%`, minWidth: '280px', maxWidth: '500px' }}>
               {/* Sidebar header - minimal */}
-              <div className="p-3 border-b border-white/5 bg-[#0c0c0f]/60">
+              <div className="p-3 border-b border-white/5 bg-[#0a0a0a]">
                 <button 
                   onClick={() => setActiveTab("home")}
                   className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-zinc-400 hover:text-white border border-white/5 transition-all cursor-pointer"
@@ -2051,7 +2039,7 @@ Seu Prompt Criador:
                           <div className={`rounded-2xl p-3 text-[12px] leading-relaxed font-sans transition-all duration-300 hover:scale-[1.01] ${
                             msg.sender === "user"
                               ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-br-md shadow-lg shadow-indigo-500/20"
-                              : "bg-[#1a1a1f] border border-white/5 text-zinc-200 rounded-bl-md shadow-lg shadow-black/20"
+                              : "bg-[#141414] border border-white/5 text-zinc-200 rounded-bl-md shadow-lg shadow-black/20"
                           }`}>
                             {msg.sender === "ai" && (
                               <div className="flex items-center gap-1.5 mb-2 pb-2 border-b border-white/5">
@@ -2068,7 +2056,7 @@ Seu Prompt Criador:
 
                       {isGenerating && (
                         <div className="flex max-w-[95%] self-start animate-fade-in">
-                          <div className="rounded-2xl p-3 bg-[#1a1a1f] border border-white/5 text-zinc-400 rounded-bl-md shadow-lg shadow-black/20">
+                          <div className="rounded-2xl p-3 bg-[#141414] border border-white/5 text-zinc-400 rounded-bl-md shadow-lg shadow-black/20">
                             <div className="flex items-center gap-1.5 mb-2 pb-2 border-b border-white/5">
                               <div className="w-4 h-4 rounded-md bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center animate-pulse">
                                 <Sparkles className="w-2.5 h-2.5 text-white" />
@@ -2111,7 +2099,7 @@ Seu Prompt Criador:
                                     setRefinePrompt(rec.action);
                                     setShowRecommendations(false);
                                   }}
-                                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#1a1a1f] hover:bg-[#222228] border border-white/5 hover:border-indigo-500/30 rounded-lg text-[10px] text-zinc-400 hover:text-zinc-200 transition-all duration-200 hover:scale-105"
+                                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 hover:border-indigo-500/30 rounded-lg text-[10px] text-zinc-400 hover:text-zinc-200 transition-all duration-200 hover:scale-105"
                                 >
                                   <Icon className="w-3 h-3 text-indigo-400" />
                                   <span>{rec.text}</span>
@@ -2125,8 +2113,8 @@ Seu Prompt Criador:
                   </div>
 
                   {/* Lovable-inspired prompt input container at the bottom of the sidebar */}
-                  <div className="p-4 border-t border-white/5 bg-[#07070a]/85 backdrop-blur-sm space-y-3 shrink-0">
-                    <div className="bg-[#141418] rounded-2xl border border-white/5 p-3 flex flex-col gap-2 focus-within:border-indigo-500/30 transition-all shadow-inner">
+                  <div className="p-4 border-t border-white/5 bg-[#0a0a0a] space-y-3 shrink-0">
+                    <div className="bg-[#141414] rounded-2xl border border-white/5 p-3 flex flex-col gap-2 focus-within:border-indigo-500/30 transition-all shadow-inner">
                       <textarea
                         value={refinePrompt}
                         onChange={(e) => setRefinePrompt(e.target.value)}
@@ -2246,10 +2234,10 @@ Seu Prompt Criador:
             </div>
 
             {/* Main Interactive Editor & Preview Canvas */}
-            <main className="flex-grow bg-[#050505] flex flex-col relative overflow-hidden">
+            <main className="flex-grow bg-[#0a0a0a] flex flex-col relative overflow-hidden">
               
               {/* Workspace Top Toolbar */}
-              <div className="h-12 border-b border-white/5 bg-[#09090b] px-4 flex items-center justify-between shrink-0">
+              <div className="h-12 border-b border-white/5 bg-[#0a0a0a] px-4 flex items-center justify-between shrink-0">
                 
                 {/* Center Control Group */}
                 <div className="flex items-center gap-3">
@@ -2350,24 +2338,18 @@ Seu Prompt Criador:
               </div>
 
               {/* Workspace Stage */}
-              <div className="flex-1 relative overflow-hidden bg-[#040406]">
-                
-                {/* Background soft mesh decoration */}
-                <div className="absolute inset-0 pointer-events-none opacity-20 overflow-hidden">
-                  <div className="absolute top-10 right-20 w-80 h-80 bg-indigo-500/10 rounded-full blur-[100px]"></div>
-                  <div className="absolute bottom-10 left-10 w-96 h-96 bg-purple-500/10 rounded-full blur-[120px]"></div>
-                </div>
+              <div className="flex-1 relative overflow-hidden bg-[#09090b]">
 
                 {activeProject ? (
                   previewMode === "preview" ? (
                     /* LIVE IFRAME RENDER PREVIEW - Full width/height */
                     <div 
-                      className="w-full h-full flex flex-col bg-white overflow-hidden"
+                      className="w-full h-full flex flex-col bg-[#0a0a0a] overflow-hidden"
                     >
                       <iframe 
                         id="rendered-preview-iframe"
                         srcDoc={getIframeSrcDoc()}
-                        className="w-full flex-grow bg-white border-none"
+                        className="w-full flex-grow bg-[#0a0a0a] border-none"
                         title="Preview do site gerado"
                         sandbox="allow-scripts allow-popups"
                       />
@@ -2377,14 +2359,14 @@ Seu Prompt Criador:
                     <div className="w-full h-full flex min-w-0 overflow-hidden">
                       
                       {/* === FILE TREE (Left Panel — independent scroll) === */}
-                      <div className="w-64 h-full border-r border-white/5 bg-[#0a0a0c] flex flex-col shrink-0 overflow-hidden">
+                      <div className="w-64 h-full border-r border-white/5 bg-[#0a0a0a] flex flex-col shrink-0 overflow-hidden">
                         {/* Search */}
                         <div className="px-3 py-2.5 border-b border-white/5">
                           <div className="relative">
                             <input
                               type="text"
                               placeholder="Search code"
-                              className="w-full bg-[#121215] border border-white/5 rounded-lg px-3 py-1.5 text-[11px] text-zinc-300 placeholder:text-zinc-600 outline-none focus:border-indigo-500/40 transition-all"
+                              className="w-full bg-[#141414] border border-white/5 rounded-lg px-3 py-1.5 text-[11px] text-zinc-300 placeholder:text-zinc-600 outline-none focus:border-indigo-500/40 transition-all"
                             />
                             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-zinc-600 bg-white/5 px-1.5 py-0.5 rounded font-mono">⌘K</span>
                           </div>
@@ -2535,9 +2517,9 @@ Seu Prompt Criador:
                       </div>
 
                       {/* === CODE AREA (Right Panel — independent scroll) === */}
-                      <div className="flex-1 min-w-0 h-full flex flex-col overflow-hidden bg-[#09090b]">
+                      <div className="flex-1 min-w-0 h-full flex flex-col overflow-hidden bg-[#0a0a0a]">
                         {/* File tabs bar */}
-                        <div className="flex items-center gap-1 px-3 py-1.5 bg-[#0c0c0f] border-b border-white/5 overflow-x-auto shrink-0 scrollbar-none">
+                        <div className="flex items-center gap-1 px-3 py-1.5 bg-[#0a0a0a] border-b border-white/5 overflow-x-auto shrink-0 scrollbar-none">
                           {[
                             { name: "index.php", label: "index.php" },
                             { name: "config.php", label: "config.php" },
@@ -2566,7 +2548,7 @@ Seu Prompt Criador:
                         </div>
 
                         {/* Code topbar: filename + actions */}
-                        <div className="h-9 bg-[#0d0d11]/85 border-b border-white/5 flex items-center justify-between px-4 shrink-0">
+                        <div className="h-9 bg-[#0a0a0a] border-b border-white/5 flex items-center justify-between px-4 shrink-0">
                           <span className="text-[11px] font-mono text-zinc-400">{selectedFileName}</span>
                           <div className="flex items-center gap-2">
                             <button
@@ -2597,7 +2579,7 @@ Seu Prompt Criador:
 
                         {/* Code content with line numbers — scrolls independently */}
                         <div className="flex-1 min-h-0 overflow-hidden">
-                          <pre className="h-full overflow-y-auto overflow-x-auto font-mono text-[13px] leading-[1.7] bg-[#0d0d11]/50 scrollbar-none">
+                          <pre className="h-full overflow-y-auto overflow-x-auto font-mono text-[13px] leading-[1.7] bg-[#0a0a0a] scrollbar-none">
                             <code className="whitespace-pre">{selectedFileContent.split('\n').map((line, i) => (
                               <div key={i} className="flex hover:bg-white/[0.02]">
                                 <span className="inline-block w-12 text-right pr-4 text-zinc-600 select-none shrink-0 text-[11px]">{i + 1}</span>
@@ -2611,7 +2593,7 @@ Seu Prompt Criador:
                   )
                 ) : (
                   /* Initial Empty State Builder Stage */
-                  <div className="text-center space-y-6 max-w-md z-10 bg-[#0c0c0f]/80 p-8 rounded-2xl border border-white/5">
+                  <div className="text-center space-y-6 max-w-md z-10 bg-[#0a0a0a] p-8 rounded-2xl border border-white/5">
                     <div className="w-14 h-14 bg-white/5 rounded-full flex items-center justify-center mx-auto border border-white/10 text-indigo-400">
                       <Sparkles className="w-6 h-6 animate-pulse" />
                     </div>
