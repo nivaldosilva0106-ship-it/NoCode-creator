@@ -236,6 +236,23 @@ app.post("/api/generate", async (req, res) => {
     }
 
     const data = JSON.parse(responseText.trim());
+
+    // Auto-save to Supabase if connected
+    try {
+      if (supabaseUrl && supabaseKey) {
+        await supabase.from("projects").insert([{
+          prompt,
+          html: data.html || "",
+          css: data.css || "",
+          js: data.js || "",
+          explanation: data.explanation || ""
+        }]);
+        console.log("[Supabase] Projeto salvo automaticamente após geração.");
+      }
+    } catch (saveErr) {
+      console.error("[Supabase] Erro ao salvar projeto:", saveErr);
+    }
+
     res.json(data);
 
   } catch (error: any) {

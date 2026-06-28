@@ -693,6 +693,52 @@ const AI_PROVIDERS: AIProvider[] = [
   }
 ];
 
+function SupabaseStatusCard() {
+  const [status, setStatus] = useState<"loading" | "connected" | "error">("loading");
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    fetch("/api/supabase/status")
+      .then(r => r.json())
+      .then(data => {
+        if (data.connected) {
+          setStatus("connected");
+          setMsg(data.message || "Conectado ao banco de dados.");
+        } else {
+          setStatus("error");
+          setMsg(data.error || "Erro de conexão.");
+        }
+      })
+      .catch(() => {
+        setStatus("error");
+        setMsg("Não foi possível contactar o servidor.");
+      });
+  }, []);
+
+  return (
+    <div className="flex items-center gap-3">
+      {status === "loading" && (
+        <>
+          <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span>
+          <span className="text-xs text-zinc-400">Verificando conexão...</span>
+        </>
+      )}
+      {status === "connected" && (
+        <>
+          <span className="w-2 h-2 rounded-full bg-green-500"></span>
+          <span className="text-xs text-green-400 font-semibold">{msg}</span>
+        </>
+      )}
+      {status === "error" && (
+        <>
+          <span className="w-2 h-2 rounded-full bg-red-500"></span>
+          <span className="text-xs text-red-400">{msg}</span>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   // Navigation State: 'home' | 'builder' | 'admin'
   const [activeTab, setActiveTab] = useState<"home" | "builder" | "admin">("home");
@@ -959,18 +1005,47 @@ export default function App() {
   // Load API config and History on mount
   useEffect(() => {
     fetchConfig();
-    try {
-      const savedHistory = localStorage.getItem("nocode_generator_history");
-      if (savedHistory) {
-        const parsed = JSON.parse(savedHistory);
-        setHistory(parsed);
-        if (parsed.length > 0) {
-          setActiveProject(parsed[0]);
+    
+    // Try loading from Supabase first, fallback to localStorage
+    const loadHistory = async () => {
+      try {
+        const res = await fetch("/api/supabase/projects");
+        const data = await res.json();
+        if (data.projects && data.projects.length > 0) {
+          const mapped = data.projects.map((p: any) => ({
+            prompt: p.prompt,
+            html: p.html,
+            css: p.css,
+            js: p.js,
+            explanation: p.explanation,
+            timestamp: new Date(p.created_at).getTime(),
+            messages: [
+              { id: `msg-init-user-${p.id}`, sender: "user", text: p.prompt, timestamp: new Date(p.created_at).getTime() - 1000 },
+              { id: `msg-init-ai-${p.id}`, sender: "ai", text: p.explanation || "Site gerado.", timestamp: new Date(p.created_at).getTime() }
+            ]
+          }));
+          setHistory(mapped);
+          setActiveProject(mapped[0]);
+          return;
         }
+      } catch (e) {
+        console.log("[Supabase] Usando fallback localStorage.");
       }
-    } catch (e) {
-      console.error("Erro ao carregar histórico local:", e);
-    }
+      // Fallback to localStorage
+      try {
+        const savedHistory = localStorage.getItem("nocode_generator_history");
+        if (savedHistory) {
+          const parsed = JSON.parse(savedHistory);
+          setHistory(parsed);
+          if (parsed.length > 0) {
+            setActiveProject(parsed[0]);
+          }
+        }
+      } catch (e) {
+        console.error("Erro ao carregar histórico local:", e);
+      }
+    };
+    loadHistory();
   }, []);
 
   // Update selected file content when active project or selected file changes
@@ -1237,6 +1312,23 @@ export default function App() {
       setHistory(updatedHistory);
       localStorage.setItem("nocode_generator_history", JSON.stringify(updatedHistory));
 
+      // Save to Supabase
+      try {
+        await fetch("/api/supabase/projects/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: promptText,
+            html: responseData.html || "",
+            css: responseData.css || "",
+            js: responseData.js || "",
+            explanation: responseData.explanation || ""
+          })
+        });
+      } catch (e) {
+        console.log("[Supabase] Erro ao salvar, mas projeto salvo localmente.");
+      }
+
       // Deduct 15 credits on success
       setUserCredits(prev => Math.max(0, prev - 15));
 
@@ -1352,6 +1444,23 @@ export default function App() {
       const updatedHistory = [updatedProject, ...history.filter(h => h.prompt !== updatedProject.prompt)].slice(0, 10);
       setHistory(updatedHistory);
       localStorage.setItem("nocode_generator_history", JSON.stringify(updatedHistory));
+
+      // Save refined project to Supabase
+      try {
+        await fetch("/api/supabase/projects/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: updatedProject.prompt,
+            html: updatedProject.html,
+            css: updatedProject.css,
+            js: updatedProject.js,
+            explanation: updatedProject.explanation
+          })
+        });
+      } catch (e) {
+        console.log("[Supabase] Erro ao salvar refinamento, mas salvo localmente.");
+      }
 
       // Deduct 10 credits on successful refinement
       setUserCredits(prev => Math.max(0, prev - 10));
@@ -2223,6 +2332,107 @@ Seu Prompt Criador:
                   </button>
                 </div>
               )}
+
+              {/* Always show chat input at bottom, even when no project */}
+              <div className="p-4 border-t border-white/5 bg-[#0a0a0a] space-y-3 shrink-0">
+                <div className="bg-[#141414] rounded-2xl border border-white/5 p-3 flex flex-col gap-2 focus-within:border-indigo-500/30 transition-all shadow-inner">
+                  <textarea
+                    value={promptInput}
+                    onChange={(e) => setPromptInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleGenerate(promptInput);
+                      }
+                    }}
+                    placeholder="Peça ao NoCode para construir..."
+                    className="bg-transparent border-none outline-none resize-none text-[13px] text-white px-1 py-1 placeholder:text-zinc-600 h-12 max-h-24 scrollbar-none"
+                    disabled={isGenerating}
+                  />
+                  
+                  <div className="flex items-center justify-between border-t border-white/5 pt-2">
+                    <div className="flex items-center gap-1">
+                      <button 
+                        className="p-2 hover:bg-white/5 rounded-xl transition-all text-zinc-500 hover:text-indigo-400 hover:bg-indigo-500/10" 
+                        title="Adicionar anexo"
+                        onClick={() => {
+                          const input = document.createElement('input');
+                          input.type = 'file';
+                          input.accept = 'image/*,.pdf,.txt';
+                          input.onchange = (e) => {
+                            const file = (e.target as HTMLInputElement).files?.[0];
+                            if (file) {
+                              setPromptInput(prev => prev + `[Arquivo: ${file.name}] `);
+                            }
+                          };
+                          input.click();
+                        }}
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                      <button 
+                        className="p-2 hover:bg-white/5 rounded-xl transition-all text-zinc-500 hover:text-indigo-400 hover:bg-indigo-500/10" 
+                        title="Modo Tela Cheia"
+                        onClick={() => {
+                          if (document.fullscreenElement) {
+                            document.exitFullscreen();
+                          } else {
+                            document.documentElement.requestFullscreen();
+                          }
+                        }}
+                      >
+                        <Maximize2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button 
+                        className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-xl text-[11px] text-zinc-400 font-semibold transition-all border border-white/5 flex items-center gap-1.5 hover:border-indigo-500/30"
+                        onClick={() => {
+                          setPromptInput("Crie uma landing page moderna com design escuro");
+                        }}
+                      >
+                        <span>Recursos de IA</span>
+                      </button>
+                      
+                      <button 
+                        className="p-2 hover:bg-white/5 rounded-xl transition-all text-zinc-500 hover:text-indigo-400 hover:bg-indigo-500/10" 
+                        title="Gravação de voz"
+                        onClick={() => {
+                          if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                            const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+                            const recognition = new SpeechRecognition();
+                            recognition.lang = 'pt-BR';
+                            recognition.onresult = (event: any) => {
+                              const transcript = event.results[0][0].transcript;
+                              setPromptInput(transcript);
+                            };
+                            recognition.start();
+                          }
+                        }}
+                      >
+                        <Mic className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        onClick={() => handleGenerate(promptInput)}
+                        disabled={!promptInput.trim() || isGenerating}
+                        className="w-9 h-9 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl flex items-center justify-center transition-all disabled:opacity-30 disabled:scale-95 shadow-lg shadow-indigo-600/25 hover:shadow-indigo-500/40 hover:scale-105"
+                        title="Enviar mensagem"
+                      >
+                        {isGenerating ? (
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-center">
+                  <span className="text-[9px] text-zinc-600 font-sans">Enter para enviar · Shift+Enter para nova linha</span>
+                </div>
+              </div>
             </aside>
 
             {/* Resize Handle */}
@@ -2621,10 +2831,10 @@ Seu Prompt Criador:
 
         {/* TAB 3: ADMIN PANEL (CONFIGURATION & AI MODELS) */}
         {activeTab === "admin" && (
-          <div id="admin-view" className="flex-1 flex flex-col md:flex-row min-h-[calc(100vh-4rem)]">
+          <div id="admin-view" className="flex-1 flex flex-col md:flex-row overflow-hidden">
             
             {/* Lateral Header (Sidebar Navigation only on Admin tab) */}
-            <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-white/5 bg-[#08080a]/95 flex flex-col shrink-0">
+            <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-white/5 bg-[#08080a]/95 flex flex-col shrink-0 h-full">
               {/* Header Title inside Admin Sidebar */}
               <div className="p-5 border-b border-white/5 bg-[#0c0c10]/40">
                 <span className="text-[10px] font-sans font-bold text-indigo-400 uppercase tracking-widest block mb-1">Configuração Geral</span>
@@ -2668,7 +2878,7 @@ Seu Prompt Criador:
             </aside>
 
             {/* Main Section Content */}
-            <main className="flex-grow p-6 md:p-8 space-y-6 overflow-y-auto max-w-5xl">
+            <main className="flex-grow p-6 md:p-8 space-y-6 overflow-y-auto max-w-5xl h-full">
               
               {adminSubTab === "dashboard" && (
                 <div className="space-y-6">
@@ -2721,6 +2931,16 @@ Seu Prompt Criador:
                         <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider">Histórico</span>
                       </div>
                       <p className="text-[10px] text-zinc-500">Seus projetos estão salvos e podem ser recarregados a qualquer momento.</p>
+                    </div>
+
+                    {/* Supabase Status Bento */}
+                    <div className="bg-gradient-to-b from-[#09090b] to-[#060608] border border-white/5 p-5 rounded-2xl space-y-3 relative overflow-hidden group shadow-md sm:col-span-2 md:col-span-3">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/5 rounded-full blur-2xl group-hover:bg-green-500/10 transition-colors"></div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Banco de Dados (Supabase)</span>
+                        <Database className="w-5 h-5 text-green-400" />
+                      </div>
+                      <SupabaseStatusCard />
                     </div>
 
                   </div>
