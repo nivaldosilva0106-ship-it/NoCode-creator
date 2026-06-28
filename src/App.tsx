@@ -1072,55 +1072,86 @@ export default function App() {
     }
   }, [generationLogs]);
 
-  // Fetch server configuration
+  // Fetch server configuration from Supabase
   const fetchConfig = async () => {
     try {
-      const res = await fetch("/api/config");
-      if (res.ok) {
-        const data = await res.json();
-        setApiConfig(data);
-        setSystemInstructionInput(data.systemInstruction || "");
-        
-        // Multi-provider loading
-        const provider = data.activeProvider || "google-ai";
-        setActiveProvider(provider);
-        
-        const model = data.activeModel || data.model || "gemini-3.5-flash";
-        setActiveModel(model);
-        setModelSelect(model);
-        
-        const savedKeys = data.apiKeys || {};
-        setApiKeys(savedKeys);
-        
-        setSavedProviders(data.savedProviders || []);
-        setCustomModelInput(data.customModelInput || "");
+      const { data, error } = await supabase
+        .from("user_configs")
+        .select("*")
+        .eq("user_id", "default")
+        .maybeSingle();
 
-        // Sync visual mask
-        const providerKey = savedKeys[provider];
-        if (providerKey) {
-          setCustomKeyInput(KEY_MASK);
-        } else if (provider === "google-ai" && data.hasCustomApiKey) {
-          setCustomKeyInput(KEY_MASK);
+      if (error) {
+        if (error.code === "42P01") {
+          console.error("Tabela 'user_configs' não existe. Execute o SQL do schema no Supabase.");
         } else {
-          setCustomKeyInput("");
+          console.error("Erro ao carregar config do Supabase:", error);
         }
+        return;
+      }
 
-        // Determine if custom model field should be displayed
-        const providerData = AI_PROVIDERS.find(p => p.id === provider);
-        const modelInList = providerData?.models.some(m => m.id === model);
-        if (model && providerData && !modelInList) {
-          setShowCustomModelField(true);
-          setCustomModelInput(model);
-        } else {
-          setShowCustomModelField(false);
-        }
+      if (!data) {
+        // No config exists yet, create default
+        const defaultConfig = {
+          user_id: "default",
+          active_provider: "google-ai",
+          active_model: "gemini-3.5-flash",
+          custom_model_input: "",
+          api_keys: {},
+          saved_providers: [],
+          system_instruction: "Você é o NoCode Creator, um desenvolvedor front-end de elite que cria sites de página única (SPA) modernos, responsivos e extremamente elegantes em HTML5, CSS3 e JavaScript. Use Tailwind CSS via CDN (https://cdn.tailwindcss.com) para estilização incrível e Lucide Icons (https://unpkg.com/lucide@latest) para ícones modernos. Crie páginas ricas em seções, com imagens ilustrativas bonitas do Unsplash, tipografia impecável, seções bem estruturadas (Hero, Benefícios, Galeria/Portfolio, Depoimentos, Preços, FAQ e Contato), e interatividade real via JS para abrir modais, validar formulários e alternar abas."
+        };
+        await supabase.from("user_configs").insert(defaultConfig);
+        // Apply defaults to state
+        setApiConfig({ model: "gemini-3.5-flash", systemInstruction: defaultConfig.system_instruction, hasCustomApiKey: false, customApiKey: "" });
+        setActiveProvider("google-ai");
+        setActiveModel("gemini-3.5-flash");
+        setModelSelect("gemini-3.5-flash");
+        setSystemInstructionInput(defaultConfig.system_instruction);
+        setApiKeys({});
+        setSavedProviders([]);
+        setCustomKeyInput("");
+        setCustomModelInput("");
+        return;
+      }
+
+      const provider = data.active_provider || "google-ai";
+      const model = data.active_model || "gemini-3.5-flash";
+      const savedKeys: Record<string, string> = data.api_keys || {};
+
+      setActiveProvider(provider);
+      setActiveModel(model);
+      setModelSelect(model);
+      setSystemInstructionInput(data.system_instruction || "");
+      setApiKeys(savedKeys);
+      setSavedProviders(data.saved_providers || []);
+      setCustomModelInput(data.custom_model_input || "");
+
+      // Sync visual mask for active provider
+      const providerKey = savedKeys[provider];
+      if (providerKey) {
+        setCustomKeyInput(KEY_MASK);
+      } else if (provider === "google-ai" && savedKeys["google-ai"]) {
+        setCustomKeyInput(KEY_MASK);
+      } else {
+        setCustomKeyInput("");
+      }
+
+      // Determine if custom model field should be displayed
+      const providerData = AI_PROVIDERS.find(p => p.id === provider);
+      const modelInList = providerData?.models.some(m => m.id === model);
+      if (model && providerData && !modelInList) {
+        setShowCustomModelField(true);
+        setCustomModelInput(model);
+      } else {
+        setShowCustomModelField(false);
       }
     } catch (error) {
-      console.error("Erro ao carregar configurações do servidor:", error);
+      console.error("Erro ao carregar configurações:", error);
     }
   };
 
-  // Save server configuration
+  // Save server configuration to Supabase
   const handleSaveConfig = async (e: FormEvent) => {
     e.preventDefault();
 
@@ -1154,30 +1185,29 @@ export default function App() {
       // Automatically make editingProvider active when saving
       const nextActiveProvider = editingProvider;
 
-      const res = await fetch("/api/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          activeProvider: nextActiveProvider,
-          activeModel: finalModel,
-          customModelInput: showCustomModelField ? customModelInput : "",
-          model: finalModel,
-          systemInstruction: systemInstructionInput,
-          apiKeys: updatedKeys,
-          savedProviders: updatedSavedProviders
-        })
-      });
+      const { error } = await supabase
+        .from("user_configs")
+        .upsert({
+          user_id: "default",
+          active_provider: nextActiveProvider,
+          active_model: finalModel,
+          custom_model_input: showCustomModelField ? customModelInput : "",
+          api_keys: updatedKeys,
+          saved_providers: updatedSavedProviders,
+          system_instruction: systemInstructionInput,
+        }, { onConflict: "user_id" });
 
-      if (res.ok) {
+      if (error) {
+        console.error("Supabase save error:", error);
+        setAdminStatusMsg(`Erro: ${error.message || "Não foi possível salvar"}`);
+      } else {
         setAdminStatusMsg(`Configurações de ${AI_PROVIDERS.find(p => p.id === editingProvider)?.name || editingProvider} salvas e ativadas!`);
         setActiveProvider(nextActiveProvider);
         fetchConfig();
         setTimeout(() => setAdminStatusMsg(""), 3000);
-      } else {
-        const data = await res.json();
-        setAdminStatusMsg(`Erro: ${data.error || "Não foi possível salvar"}`);
       }
     } catch (error) {
+      console.error("Save config error:", error);
       setAdminStatusMsg("Falha ao salvar configurações.");
     } finally {
       setAdminSaving(false);
@@ -1189,8 +1219,24 @@ export default function App() {
     if (confirm("Deseja realmente restaurar as configurações padrão?")) {
       setAdminSaving(true);
       try {
-        const res = await fetch("/api/reset-config", { method: "POST" });
-        if (res.ok) {
+        const defaultConfig = {
+          user_id: "default",
+          active_provider: "google-ai",
+          active_model: "gemini-3.5-flash",
+          custom_model_input: "",
+          api_keys: {},
+          saved_providers: [],
+          system_instruction: "Você é o NoCode Creator, um desenvolvedor front-end de elite que cria sites de página única (SPA) modernos, responsivos e extremamente elegantes em HTML5, CSS3 e JavaScript. Use Tailwind CSS via CDN (https://cdn.tailwindcss.com) para estilização incrível e Lucide Icons (https://unpkg.com/lucide@latest) para ícones modernos. Crie páginas ricas em seções, com imagens ilustrativas bonitas do Unsplash, tipografia impecável, seções bem estruturadas (Hero, Benefícios, Galeria/Portfolio, Depoimentos, Preços, FAQ e Contato), e interatividade real via JS para abrir modais, validar formulários e alternar abas."
+        };
+
+        const { error } = await supabase
+          .from("user_configs")
+          .upsert(defaultConfig, { onConflict: "user_id" });
+
+        if (error) {
+          console.error("Reset config error:", error);
+          setAdminStatusMsg("Erro ao restaurar configurações.");
+        } else {
           setAdminStatusMsg("Configurações resetadas com sucesso!");
           fetchConfig();
           setTimeout(() => setAdminStatusMsg(""), 3000);
@@ -3300,15 +3346,14 @@ Seu Prompt Criador:
                                   onClick={async () => {
                                     setAdminSaving(true);
                                     try {
-                                      const res = await fetch("/api/config", {
-                                        method: "POST",
-                                        headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({
-                                          activeProvider: provId,
-                                          activeModel: prov.models[0]?.id || provId
-                                        })
-                                      });
-                                      if (res.ok) {
+                                      const { error } = await supabase
+                                        .from("user_configs")
+                                        .upsert({
+                                          user_id: "default",
+                                          active_provider: provId,
+                                          active_model: prov.models[0]?.id || provId,
+                                        }, { onConflict: "user_id" });
+                                      if (!error) {
                                         setAdminStatusMsg(`Provedor ${prov.name} ativado com sucesso!`);
                                         fetchConfig();
                                         setTimeout(() => setAdminStatusMsg(""), 3000);
